@@ -31,11 +31,10 @@ jobs:
           npm ci
           npm dedupe
 
-      # 关键：CI 构建直接用 esbuild，跳过 tsc 类型检查
       - name: Build plugin (skip tsc)
         run: node esbuild.config.mjs production
 
-      - name: Prepare plugin files
+      - name: Prepare plugin folder
         run: |
           mkdir obsidian-memos-sync
           cp main.js manifest.json obsidian-memos-sync/
@@ -43,22 +42,26 @@ jobs:
             cp styles.css obsidian-memos-sync/
           fi
 
-          # 使用 github.ref_name 作为简洁的名字，例如 v1.0.0 或 master
-          NAME="${GITHUB_REF_NAME}"
-          zip -r "obsidian-memos-sync-${NAME}.zip" obsidian-memos-sync
+      # 手动触发：只打一个固定文件名的 zip，不建 Release
+      - name: Zip for manual run
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          zip -r obsidian-memos-sync-latest.zip obsidian-memos-sync
 
-      - name: Create release
+      # 打 tag：用 tag 名打包，并创建 Release
+      - name: Zip for tag release
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        run: |
+          TAG_NAME="${GITHUB_REF_NAME}"
+          zip -r "obsidian-memos-sync-${TAG_NAME}.zip" obsidian-memos-sync
+
+      - name: Create release for tag
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          NAME="${GITHUB_REF_NAME}"
-
-          # 如果是 tag（refs/tags/*），就创建/更新对应的 Release
-          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-            gh release create "${NAME}" \
-              --title="${NAME}" \
-              --draft \
-              "obsidian-memos-sync-${NAME}.zip"
-          else
-            echo "Not a tag (${GITHUB_REF}), skip creating release."
-          fi
+          TAG_NAME="${GITHUB_REF_NAME}"
+          gh release create "${TAG_NAME}" \
+            --title="${TAG_NAME}" \
+            --draft \
+            "obsidian-memos-sync-${TAG_NAME}.zip"
