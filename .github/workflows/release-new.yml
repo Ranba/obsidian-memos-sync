@@ -42,14 +42,23 @@ jobs:
           if [ -f styles.css ]; then
             cp styles.css obsidian-memos-sync/
           fi
-          zip -r obsidian-memos-sync-${GITHUB_REF#refs/tags/}.zip obsidian-memos-sync
+
+          # 使用 github.ref_name 作为简洁的名字，例如 v1.0.0 或 master
+          NAME="${GITHUB_REF_NAME}"
+          zip -r "obsidian-memos-sync-${NAME}.zip" obsidian-memos-sync
 
       - name: Create release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          tag="${GITHUB_REF#refs/tags/}"
-          gh release create "$tag" \
-            --title="$tag" \
-            --draft \
-            obsidian-memos-sync-"$tag".zip
+          NAME="${GITHUB_REF_NAME}"
+
+          # 如果是 tag（refs/tags/*），就创建/更新对应的 Release
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            gh release create "${NAME}" \
+              --title="${NAME}" \
+              --draft \
+              "obsidian-memos-sync-${NAME}.zip"
+          else
+            echo "Not a tag (${GITHUB_REF}), skip creating release."
+          fi
