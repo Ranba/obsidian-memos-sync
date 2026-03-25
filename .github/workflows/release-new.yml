@@ -1,0 +1,54 @@
+name: Release Obsidian plugin
+
+on:
+  push:
+    tags:
+      - "*"          # 任意 tag
+  workflow_dispatch: # 支持手动触发
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+          cache: npm
+
+      # 关键：把 obsidian-api 的 SSH 地址替换成 HTTPS 地址
+      - name: Fix obsidian-api git URL to HTTPS
+        run: |
+          if [ -f package.json ]; then
+            sed -i 's#ssh://git@github.com/obsidianmd/obsidian-api.git#https://github.com/obsidianmd/obsidian-api.git#g' package.json
+          fi
+
+      - name: Install dependencies (npm ci)
+        run: npm ci
+
+      - name: Build plugin
+        run: npm run build
+
+      # 整理发布文件
+      - name: Prepare plugin files
+        run: |
+          mkdir obsidian-memos-sync
+          cp main.js manifest.json obsidian-memos-sync/
+          if [ -f styles.css ]; then
+            cp styles.css obsidian-memos-sync/
+          fi
+          zip -r obsidian-memos-sync-${GITHUB_REF#refs/tags/}.zip obsidian-memos-sync
+
+      - name: Create release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          gh release create "$tag" \
+            --title="$tag" \
+            --draft \
+            obsidian-memos-sync-"$tag".zip
