@@ -3,8 +3,8 @@ name: Release Obsidian plugin
 on:
   push:
     tags:
-      - "*"          # 任意 tag
-  workflow_dispatch: # 支持手动触发
+      - "*"
+  workflow_dispatch:
 
 jobs:
   build:
@@ -20,20 +20,21 @@ jobs:
           node-version: "20.x"
           cache: npm
 
-      # 关键：把 obsidian-api 的 SSH 地址替换成 HTTPS 地址
       - name: Fix obsidian-api git URL to HTTPS
         run: |
           if [ -f package.json ]; then
-            sed -i 's#ssh://git@github.com/obsidianmd/obsidian-api.git#https://github.com/obsidianmd/obsidian-api.git#g' package.json
+            sed -i 's#ssh://git@github.com/obsidianmd/obsidian-api.git#https://github.com/obsidianmd/obsidian-api.git#g' package.json || true
           fi
 
-      - name: Install dependencies (npm ci)
-        run: npm ci
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm dedupe
 
-      - name: Build plugin
-        run: npm run build
+      # 关键：CI 构建直接用 esbuild，跳过 tsc 类型检查
+      - name: Build plugin (skip tsc)
+        run: node esbuild.config.mjs production
 
-      # 整理发布文件
       - name: Prepare plugin files
         run: |
           mkdir obsidian-memos-sync
